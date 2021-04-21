@@ -1,0 +1,84 @@
+<odoo>
+    <data>
+        <record id="mail_employee_clock_notifications" model="mail.template">
+            <field name="name">Employee Clock Notifications Mail</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="subject">Employee Clock Notifications</field>
+            <field name="email_from">${user.email_formatted | safe}</field>
+            <field name="email_to">brian@ludingtonhobbies.com</field>
+            <field name="auto_delete" eval="False"/>
+            <field name="body_html" type="xml">
+                <div>
+                    Respected Manager,<br/>Here is attached the list of daily employee's clock information
+                    <br/><br/>
+
+                    <table style="width:100%;margin-top:2.5px;" border="1" cellpadding="0" cellspacing="0">
+                        <thead style="color:green;">
+                            <tr>
+                                <th style="padding:10px;">Employee Name</th>
+                                <th style="padding:10px;">Clocked In At</th>
+                                <th style="padding:10px;">Clocked Out At</th>
+                                <th style="padding:10px;">Expected Clock In</th>
+                                <th style="padding:10px;">Expected Clock Out</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            % for row in ctx.get('late_employees_list'):
+                            <tr>
+                                <td style="padding:10px;color:black">${row['employee_name']}</td>
+                                <td style="padding:10px;color:red">${row['clock_in']}</td>
+                                <td style="padding:10px;color:red">${row['clock_out']}</td>
+                                <td style="padding:10px;color:blue">${row['check_in']}</td>
+                                <td style="padding:10px;color:blue">${row['check_out']}</td>
+                            </tr>
+                            % endfor
+                        </tbody>
+                    </table>
+
+                    <br/>Best Regards<br/>
+                </div>
+            </field>
+        </record>
+
+        <record id="mail_employee_clock_notifications_manager" model="mail.template">
+            <field name="name">Employee Clock Notifications Mail Manager</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="subject">Employee Clock Notifications Manager</field>
+            <field name="email_from">${user.email_formatted | safe}</field>
+            <field name="email_to">${(object.parent_id.work_email) | safe}</field>
+            <field name="auto_delete" eval="False"/>
+            <field name="body_html" type="xml">
+                <div>
+                    Respected Manager,
+                    <br/>
+                    Here is attached the list of your employee's clock information
+                    <br/><br/>
+                    <table style="width:100%;margin-top:2.5px;" border="1" cellpadding="0" cellspacing="0">
+                        <thead style="color:green;">
+                            <tr>
+                                <th style="padding:10px;">Employee Name</th>
+                                <th style="padding:10px;">Clocked In At</th>
+                                <th style="padding:10px;">Clocked Out At</th>
+                                <th style="padding:10px;">Expected Clock In</th>
+                                <th style="padding:10px;">Expected Clock Out</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                             % for row in ctx.get('late_employees_list'):
+                            <tr>
+                                <td style="padding:10px;color:black">${row['employee_name']}</td>
+                                <td style="padding:10px;color:red">${row['clock_in']}</td>
+                                <td style="padding:10px;color:red">${row['clock_out']}</td>
+                                <td style="padding:10px;color:blue">${row['check_in']}</td>
+                                <td style="padding:10px;color:blue">${row['check_out']}</td>
+                            </tr>
+                            % endfor
+                        </tbody>
+                    </table>
+
+                    <br/>Best Regards<br/>
+                </div>
+            </field>
+        </record>
+    </data>
+</odoo>

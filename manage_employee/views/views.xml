@@ -1,0 +1,25 @@
+<odoo>
+    <data>
+        <record id="hr_employee_form_inherited" model="ir.ui.view">
+            <field name="name">hr.employee.form.inherited</field>
+            <field name="model">hr.employee</field>
+            <field name="inherit_id" ref="hr.view_employee_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//notebook" position="inside">
+                    <page string="Manage Employee">
+                        <field name="employee_clock_ids" widget="section_and_note_one2many" mode="tree">
+                            <tree string="Employee Clock" editable="bottom">
+                                <control>
+                                    <create name="add_line_control" string="Add Employee Clock"/>
+                                </control>
+                                <field name="day"/>
+                                <field name="clock_in"/>
+                                <field name="clock_out"/>
+                            </tree>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>
