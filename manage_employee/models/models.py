@@ -25,7 +25,7 @@ class HrEmployeeInherit(models.Model):
         user_timezone = pytz.timezone(self.env.context.get('tz') or self.env.user.tz)
         date_time_now = pytz.utc.localize(date_time_now).astimezone(user_timezone)
 
-        if date_time_now.hour == 20:
+        if date_time_now.hour == 20 or True:
             employees = self.env['hr.employee'].search([])
             late_employees_list = []
 
