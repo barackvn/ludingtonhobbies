@@ -1,0 +1,16 @@
+<odoo>
+    <data>
+        <record id="view_product_replenish_inherited" model="ir.ui.view">
+            <field name="name">product.replenish.inherited</field>
+            <field name="model">product.replenish</field>
+            <field name="inherit_id" ref="stock.view_product_replenish"/>
+            <field name="arch" type="xml">
+                <field name="date_planned" position="after">
+                    <field name="x_studio_special_order"/>
+                    <field name="x_studio_so_name"/>
+                    <field name="x_studio_so_phone"/>
+                </field>
+            </field>
+        </record>
+    </data>
+</odoo>
