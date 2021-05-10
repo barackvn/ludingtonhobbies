@@ -38,11 +38,11 @@ class PurchaseOrderLineInherit(models.Model):
         product_replenish = self.env['product.replenish.values'].search([])
         if product_replenish:
             if product_replenish.x_studio_special_order:
-                values['X_studio_special_order'] = product_replenish.x_studio_special_order
+                values['x_studio_special_order'] = product_replenish.x_studio_special_order
             if product_replenish.x_studio_so_name:
-                values['X_studio_so_name'] = product_replenish.x_studio_so_name
+                values['x_studio_so_name'] = product_replenish.x_studio_so_name
             if product_replenish.x_studio_so_phone:
-                values['X_studio_so_phone'] = product_replenish.x_studio_so_phone
+                values['x_studio_so_phone'] = product_replenish.x_studio_so_phone
             product_replenish.unlink()
 
         return super(PurchaseOrderLineInherit, self).create(values)
@@ -51,11 +51,11 @@ class PurchaseOrderLineInherit(models.Model):
         product_replenish = self.env['product.replenish.values'].search([])
         if product_replenish:
             if product_replenish.x_studio_special_order:
-                values['X_studio_special_order'] = product_replenish.x_studio_special_order
+                values['x_studio_special_order'] = product_replenish.x_studio_special_order
             if product_replenish.x_studio_so_name:
-                values['X_studio_so_name'] = product_replenish.x_studio_so_name
+                values['x_studio_so_name'] = product_replenish.x_studio_so_name
             if product_replenish.x_studio_so_phone:
-                values['X_studio_so_phone'] = product_replenish.x_studio_so_phone
+                values['x_studio_so_phone'] = product_replenish.x_studio_so_phone
             product_replenish.unlink()
 
         return super(PurchaseOrderLineInherit, self).write(values)
