@@ -27,24 +27,28 @@ class HrEmployeeInherit(models.Model):
             employees = self.env['hr.employee'].search([])
             late_employees_list = []
 
-            absent = True
-            to_present = False
             for employee in employees:
+                absent = True
+                to_present = False
+
                 attendances = self.env['hr.attendance'].search([('employee_id', '=', employee.id)])
 
                 clock_in = None
                 clock_out = None
 
                 for clock in employee.employee_clock_ids:
-                    if clock.day == datetime.now().strftime("%A").lower():
+                    if clock.day == time_now.strftime("%A").lower():
                         to_present = True
                         clock_in = clock.clock_in
                         clock_out = clock.clock_out
 
                 if to_present:
                     for attendance in attendances:
-                        if attendance.check_in and attendance.check_out:
-                            if attendance.check_in.date() == datetime.now().date() or attendance.check_out.date() == datetime.now().date():
+                        if attendance.check_in:
+                            if attendance.check_in.date() == time_now.date():
+                                absent = False
+                        if attendance.check_out:
+                            if attendance.check_out.date() == time_now.date():
                                 absent = False
 
                 if clock_in and clock_out:
@@ -64,9 +68,9 @@ class HrEmployeeInherit(models.Model):
                 attendances = self.env['hr.attendance'].search([('employee_id', '=', employee.id)])
                 for attendance in attendances:
                     if attendance.check_in and attendance.check_out:
-                        if attendance.check_in.date() == datetime.now().date() and attendance.check_out.date() == datetime.now().date():
+                        if attendance.check_in.date() == time_now.date() and attendance.check_out.date() == time_now.date():
                             for clock in employee.employee_clock_ids:
-                                if clock.day == datetime.now().strftime("%A").lower():
+                                if clock.day == time_now.strftime("%A").lower():
                                     user_timezone = pytz.timezone(self.env.context.get('tz') or self.env.user.tz)
 
                                     check_in = pytz.utc.localize(attendance.check_in).astimezone(user_timezone)
@@ -97,9 +101,9 @@ class HrEmployeeInherit(models.Model):
                                                         }
                                         late_employees_list.append(employee_info)
                     elif attendance.check_in and not attendance.check_out:
-                        if attendance.check_in.date() == datetime.now().date():
+                        if attendance.check_in.date() == time_now.date():
                             for clock in employee.employee_clock_ids:
-                                if clock.day == datetime.now().strftime("%A").lower():
+                                if clock.day == time_now.strftime("%A").lower():
                                     user_timezone = pytz.timezone(self.env.context.get('tz') or self.env.user.tz)
 
                                     check_in = pytz.utc.localize(attendance.check_in).astimezone(user_timezone)
@@ -125,9 +129,10 @@ class HrEmployeeInherit(models.Model):
 
             employees = self.env['hr.employee'].search([])
 
-            absent = True
-            to_present = False
             for employee in employees:
+                absent = True
+                to_present = False
+
                 late_employees_list = []
                 attendances = self.env['hr.attendance'].search([('employee_id', '=', employee.id)])
 
@@ -135,15 +140,18 @@ class HrEmployeeInherit(models.Model):
                 clock_out = None
 
                 for clock in employee.employee_clock_ids:
-                    if clock.day == datetime.now().strftime("%A").lower():
+                    if clock.day == time_now.strftime("%A").lower():
                         to_present = True
                         clock_in = clock.clock_in
                         clock_out = clock.clock_out
 
                 if to_present:
                     for attendance in attendances:
-                        if attendance.check_in and attendance.check_out:
-                            if attendance.check_in.date() == datetime.now().date() or attendance.check_out.date() == datetime.now().date():
+                        if attendance.check_in:
+                            if attendance.check_in.date() == time_now.date():
+                                absent = False
+                        if attendance.check_out:
+                            if attendance.check_out.date() == time_now.date():
                                 absent = False
 
                 if clock_in and clock_out:
@@ -168,9 +176,9 @@ class HrEmployeeInherit(models.Model):
 
                 for attendance in attendances:
                     if attendance.check_in and attendance.check_out:
-                        if attendance.check_in.date() == datetime.now().date() and attendance.check_out.date() == datetime.now().date():
+                        if attendance.check_in.date() == time_now.date() and attendance.check_out.date() == time_now.date():
                             for clock in employee.employee_clock_ids:
-                                if clock.day == datetime.now().strftime("%A").lower():
+                                if clock.day == time_now.strftime("%A").lower():
                                     user_timezone = pytz.timezone(self.env.context.get('tz') or self.env.user.tz)
 
                                     check_in = pytz.utc.localize(attendance.check_in).astimezone(user_timezone)
@@ -207,9 +215,9 @@ class HrEmployeeInherit(models.Model):
                                         template_id = self.env.ref('manage_employee.mail_employee_clock_notifications_manager').id
                                         self.env['mail.template'].browse(template_id).with_context(late_employees_dictionary).send_mail(employee.parent_id.id, force_send=True)
                     elif attendance.check_in and not attendance.check_out:
-                        if attendance.check_in.date() == datetime.now().date():
+                        if attendance.check_in.date() == time_now.date():
                             for clock in employee.employee_clock_ids:
-                                if clock.day == datetime.now().strftime("%A").lower():
+                                if clock.day == time_now.strftime("%A").lower():
                                     user_timezone = pytz.timezone(self.env.context.get('tz') or self.env.user.tz)
 
                                     check_in = pytz.utc.localize(attendance.check_in).astimezone(user_timezone)
