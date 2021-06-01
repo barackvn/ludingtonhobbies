@@ -12,9 +12,6 @@ odoo.define('pos_stock.models',function(require) {
     var SuperPosModel = models.PosModel.prototype;
     var SuperOrderline = models.Orderline.prototype;
 	var rpc = require('web.rpc');
-    const PaymentScreen = require('point_of_sale.PaymentScreen');
-	const { Gui } = require('point_of_sale.Gui');
-    const Registries = require('point_of_sale.Registries');
     var product_model = null;
     var _t = core._t;
 
@@ -47,40 +44,32 @@ odoo.define('pos_stock.models',function(require) {
       //--Updating product model dictionary--
       var super_product_loaded = product_model.loaded;
       product_model.loaded = function(self,products){
-          var temp_this = this;
-          var temp_self = self;
-          var product_data = self.db.wk_product_qtys;
+        var product_data = self.db.wk_product_qtys;
         if(self.config.wk_display_stock && self.config.wk_hide_out_of_stock){
             var available_product = [];
             var product_data = self.db.wk_product_qtys;
             var data_list = Object.keys(product_data);
-            _.each(products,function(product){
-
-                if(data_list.indexOf(product.id.toString()) != -1){
-                    if(product.type == 'service'){
-                        delete self.db.wk_product_qtys[product.id];
-                    }
+            for(var i = 0,len = products.length; i<len; i++){
+                if(data_list.indexOf(products[i].id.toString()) != -1)
                     switch(self.config.wk_stock_type){
                         case'forecasted_qty':
-                        if(product.virtual_available>0||product.type == 'service')
-                        available_product.push(product);
-                        break;
+                            if(products[i].virtual_available>0||products[i].type == 'service')
+                                available_product.push(products[i]);
+                            break;
                         case'virtual_qty':
-                        if((product.qty_available-product.outgoing_qty)>0||product.type == 'service')
-                        available_product.push(product);
-                        break;
+                            if((products[i].qty_available-products[i].outgoing_qty)>0||products[i].type == 'service')
+                                available_product.push(products[i]);
+                            break;
                         default:
-                            if(product.qty_available>0||product.type == 'service'){
-                                available_product.push(product);
+                            if(products[i].qty_available>0||products[i].type == 'service'){
+                                available_product.push(products[i]);
                             }
                     }
-                }
-            });
+            }
             products = available_product;
-            
         }
-        self.wk_change_qty_css();
-        super_product_loaded.call(temp_this,temp_self,products);
+        self.chrome.wk_change_qty_css();
+        super_product_loaded.call(this,self,products);
     };
 
     models.Order = models.Order.extend({
@@ -120,7 +109,7 @@ odoo.define('pos_stock.models',function(require) {
                     qty_count = qty
                 }
                 if(qty_count <= self.pos.config.wk_deny_val)
-                Gui.showPopup('OutOfStockMessagePopup',{
+                    self.pos.gui.show_popup('out_of_stock',{
                         'title':  _t("Warning !!!!"),
                         'body': _t("("+product.display_name+")"+self.pos.config.wk_error_msg+"."),
                         'product_id': product.id
@@ -130,7 +119,7 @@ odoo.define('pos_stock.models',function(require) {
             }else 
                 SuperOrder.add_product.call(this, product, options);
             if (self.pos.config.wk_display_stock  && !self.is_return_order)
-                self.pos.wk_change_qty_css();
+                self.pos.chrome.wk_change_qty_css();
         },
     });
 
@@ -153,14 +142,14 @@ odoo.define('pos_stock.models',function(require) {
             var push = SuperPosModel.push_and_invoice_order.call(this, order);
             return push;
         },
-        push_orders: function(order, opts) {
+        push_order: function(order, opts) {
             var self = this;
             if (order != undefined) {
                 if(!order.is_return_order){
                     var wk_order_line = order.get_orderlines();
                     for (var j = 0; j < wk_order_line.length; j++) {
                         if(!wk_order_line[j].stock_location_id)
-                        self.get('wk_product_qtys')[wk_order_line[j].product.id] = self.get('wk_product_qtys')[wk_order_line[j].product.id] - wk_order_line[j].quantity;
+                            self.get('wk_product_qtys')[wk_order_line[j].product.id] = self.get('wk_product_qtys')[wk_order_line[j].product.id] - wk_order_line[j].quantity;
                     }
                 }else{
                     var wk_order_line = order.get_orderlines();
@@ -169,64 +158,26 @@ odoo.define('pos_stock.models',function(require) {
                     }
                 }
             }
-            return SuperPosModel.push_orders.call(this, order, opts);
+            return SuperPosModel.push_order.call(this, order, opts);
         },
-        set_stock_qtys: function(result){
+    });
+    
+    models.NumpadState = models.NumpadState.extend({
+        delete_last_char_of_buffer: function() {
             var self = this;
-            var all = $('.product');
-            $.each(all, function(index, value){
-                var product_id = $(value).data('product-id');
-                var stock_qty = result[product_id];
-                $(value).find('.qty-tag').html(stock_qty);
-            });
-        },
-        get_information: function(wk_product_id) {
-            self = this;
-            if (self.get('wk_product_qtys'))
-                return self.get('wk_product_qtys')[wk_product_id];
-        },
-        wk_change_qty_css: function() {
-            self = this;
-            var wk_order = self.get('orders');
-            var wk_p_qty = new Array();
-            var wk_product_obj = self.get('wk_product_qtys');
-            if (wk_order) {
-                for (var i in wk_product_obj)
-                    wk_p_qty[i] = self.get('wk_product_qtys')[i];
-                for (var i = 0; i < wk_order.length; i++) {
-                    if(!wk_order.models[i].is_return_order){
-                        var wk_order_line = wk_order.models[i].get_orderlines();
-                        for (var j = 0; j < wk_order_line.length; j++) {
-                                if(!wk_order_line[j].stock_location_id) 
-                                wk_p_qty[wk_order_line[j].product.id] = wk_p_qty[wk_order_line[j].product.id] - wk_order_line[j].quantity;                       
-                            var qty = wk_p_qty[wk_order_line[j].product.id];
-                            if (qty)
-                                $("#qty-tag" + wk_order_line[j].product.id).html(qty);
-                            else
-                                $("#qty-tag" + wk_order_line[j].product.id).html('0');
-                        }
-                    }
-                }
+            if(this.get('buffer') === ""){
+                if(this.get('mode') === 'quantity')
+                    this.trigger('set_value','remove');
+                else
+                    this.trigger('set_value',this.get('buffer'));
+            }else if(this.get('buffer').length >1){
+                var newBuffer = this.get('buffer').slice(0,-1) || "";
+                this.set({ buffer: newBuffer });
+                this.trigger('set_value',this.get('buffer'));
             }
         }
     });
-
-
-
-    const PosWechatPaymentScreen = (PaymentScreen) =>
-        class extends PaymentScreen {
-            async _finalizeValidation() {
-                var self = this;
-                super._finalizeValidation();
-                var order = self.env.pos.get_order();
-                var wk_order_line = order.get_orderlines();
-                for (var j = 0; j < wk_order_line.length; j++) {
-                    self.env.pos.get('wk_product_qtys')[wk_order_line[j].product.id] = self.env.pos.get('wk_product_qtys')[wk_order_line[j].product.id] - wk_order_line[j].quantity;
-                }
-           }
-        };
-
-    Registries.Component.extend(PaymentScreen, PosWechatPaymentScreen);
+    
     
     models.Orderline = models.Orderline.extend({
         template: 'Orderline',
@@ -243,7 +194,7 @@ odoo.define('pos_stock.models',function(require) {
             // -------code for POS Warehouse Management----------------
             if(self.stock_location_id && quantity && quantity!='remove'){
                 if(self.pos.get_order() &&  self.pos.get_order().selected_orderline &&  self.pos.get_order().selected_orderline.cid == self.cid){
-                    Gui.showPopup('OutOfStockMessagePopup',{
+                    self.pos.gui.show_popup('out_of_stock',{
                         'title':  _t("Warning !!!!"),
                         'body': _t("Selected orderline product have different stock location, you can't update the qty of this orderline"),
                         'product_id': self.product.id
@@ -257,8 +208,9 @@ odoo.define('pos_stock.models',function(require) {
                 }   
             }
             // -------code for POS Warehouse Management----------------
+            
             if((!self.pos.config.wk_continous_sale && self.pos.config.wk_display_stock && isNaN(quantity)!=true && quantity!='' && parseFloat(self.wk_line_stock_qty)-parseFloat(quantity)<self.pos.config.wk_deny_val && self.wk_line_stock_qty !=0.0 )){
-                Gui.showPopup('OutOfStockMessagePopup',{
+                self.pos.gui.show_popup('out_of_stock',{
                     'title':  _t("Warning !!!!"),
                     'body': _t("("+this.option.product.display_name+")"+self.pos.config.wk_error_msg+"."),
                     'product_id': this.option.product.id
@@ -276,7 +228,7 @@ odoo.define('pos_stock.models',function(require) {
                         else
                             wk_avail_pro = wk_current_qty + wk_pro_order_line - quantity;
                         if (wk_avail_pro < self.pos.config.wk_deny_val && (!(quantity == '' || quantity == 'remove'))) {
-                            Gui.showPopup('OutOfStockMessagePopup',{
+                            self.pos.gui.show_popup('out_of_stock',{
                                 'title':  _t("Warning !!!!"),
                                 'body': _t("("+wk_pro_order_line.product.display_name+")"+self.pos.config.wk_error_msg+"."),
                                 'product_id':wk_pro_order_line.product.id
@@ -286,7 +238,7 @@ odoo.define('pos_stock.models',function(require) {
                     }else
                         SuperOrderline.set_quantity.call(this, quantity, keep_price);
                     if(self.pos.config.wk_display_stock) 
-                        self.pos.wk_change_qty_css();
+                        self.pos.chrome.wk_change_qty_css();
                 }
                 else
                     SuperOrderline.set_quantity.call(this, quantity, keep_price);

@@ -4,19 +4,19 @@
 
 odoo.define('pos_stock.popups', function (require) {
     "use strict";
-
-    const AbstractAwaitablePopup = require('point_of_sale.AbstractAwaitablePopup');
-    const Registries = require('point_of_sale.Registries');
-
-    class OutOfStockMessagePopup extends AbstractAwaitablePopup {
-    }
-    OutOfStockMessagePopup.template = 'OutOfStockMessagePopup';
-    OutOfStockMessagePopup.defaultProps = {
-        title: 'Confirm ?',
-        body: '',
-    };
-
-    Registries.Component.add(OutOfStockMessagePopup);
-
+    
+    var gui = require('point_of_sale.gui');
+    var PopupWidget = require('point_of_sale.popups');
+    
+    var OutOfStockMessagePopup = PopupWidget.extend({
+        template: 'OutOfStockMessagePopup',
+        show:function(options){
+            var self = this;
+            this.options = options || ''; 
+            self._super(options);
+        }
+    });
+    gui.define_popup({ name: 'out_of_stock', widget: OutOfStockMessagePopup });
+    
     return OutOfStockMessagePopup;
 });
