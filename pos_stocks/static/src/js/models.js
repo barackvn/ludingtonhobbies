@@ -108,12 +108,15 @@ odoo.define('pos_stock.models',function(require) {
                     }
                     qty_count = qty
                 }
-                if(qty_count <= self.pos.config.wk_deny_val)
-                    self.pos.gui.show_popup('out_of_stock',{
+                if(qty_count <= self.pos.config.wk_deny_val){
+					if(product.type=='consu'){
+						self.pos.gui.show_popup('out_of_stock',{
                         'title':  _t("Warning !!!!"),
                         'body': _t("("+product.display_name+")"+self.pos.config.wk_error_msg+"."),
                         'product_id': product.id
-                    });
+                    });						
+					}
+				}
                 else 
                     SuperOrder.add_product.call(this, product, options);
             }else 
