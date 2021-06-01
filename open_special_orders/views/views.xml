@@ -1,0 +1,15 @@
+<odoo>
+    <data>
+        <record model="ir.cron" id="cron_open_special_order_mail">
+            <field name="name">Open Special Orders Mail</field>
+            <field name="model_id" ref="model_purchase_order"/>
+            <field name="state">code</field>
+            <field name="code">model.open_special_order_mail()</field>
+            <field name="active" eval="False"/>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+        </record>
+    </data>
+</odoo>
