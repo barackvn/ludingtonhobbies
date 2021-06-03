@@ -6,25 +6,25 @@ import pytz
 from odoo.exceptions import ValidationError
 
 
-class PurchaseOrderInherit(models.Model):
-    _inherit = 'purchase.order'
+class PurchaseOrderLineInherit(models.Model):
+    _inherit = 'purchase.order.line'
 
     def open_special_order_mail(self):
         user_timezone = pytz.timezone(self.env.context.get('tz') or self.env.user.tz)
         time_now = pytz.utc.localize(datetime.now()).astimezone(user_timezone)
 
         if time_now.hour:
-            purchase_orders = self.env['purchase.order'].search([('x_studio_special_order', '=', True)]).sorted(key=lambda obj: obj.x_studio_so_name, reverse=True)
+            purchase_order_lines = self.env['purchase.order.line'].search([('x_studio_special_order', '=', True), ('x_studio_closed', '=', False)]).sorted(key=lambda obj: obj.x_studio_so_name)
 
             special_orders_list = []
 
-            for order in purchase_orders:
+            for order in purchase_order_lines:
                 order_info = \
                     {
-                        'part': order.name,
-                        'purchase_order': order.origin,
-                        'vendor': order.partner_id.name,
-                        'order_date': order.date_order,
+                        'part': order.order_id.name,
+                        'purchase_order': order.order_id.origin,
+                        'vendor': order.order_id.partner_id.name,
+                        'order_date': order.order_id.date_order,
 
                         'x_studio_special_order': order.x_studio_special_order,
                         'x_studio_so_name': order.x_studio_so_name,
