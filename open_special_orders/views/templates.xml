@@ -5,7 +5,7 @@
             <field name="model_id" ref="purchase.model_purchase_order_line"/>
             <field name="subject">Open Special Orders</field>
             <field name="email_from">${user.email_formatted | safe}</field>
-            <field name="email_to">brian@ludingtonhobbies.com and sales@ludingtonhobbies.com</field>
+            <field name="email_to">brian@ludingtonhobbies.com, sales@ludingtonhobbies.com</field>
             <field name="auto_delete" eval="False"/>
             <field name="body_html" type="xml">
                 <div>

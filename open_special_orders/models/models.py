@@ -19,18 +19,19 @@ class PurchaseOrderLineInherit(models.Model):
             special_orders_list = []
 
             for order in purchase_order_lines:
-                order_info = \
-                    {
-                        'part': order.order_id.name,
-                        'purchase_order': order.order_id.origin,
-                        'vendor': order.order_id.partner_id.name,
-                        'order_date': order.order_id.date_order,
+                if order.order_id.state == 'purchase':
+                    order_info = \
+                        {
+                            'part': order.product_id.default_code,
+                            'purchase_order': order.order_id.name,
+                            'vendor': order.order_id.partner_id.name,
+                            'order_date': order.order_id.date_order,
 
-                        'x_studio_special_order': order.x_studio_special_order,
-                        'x_studio_so_name': order.x_studio_so_name,
-                        'x_studio_so_phone': order.x_studio_so_phone,
-                    }
-                special_orders_list.append(order_info)
+                            'x_studio_special_order': order.x_studio_special_order,
+                            'x_studio_so_name': order.x_studio_so_name,
+                            'x_studio_so_phone': order.x_studio_so_phone,
+                        }
+                    special_orders_list.append(order_info)
 
             special_orders_dictionary = {'special_orders_list': special_orders_list}
 
