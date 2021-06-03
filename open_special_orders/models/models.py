@@ -14,7 +14,7 @@ class PurchaseOrderLineInherit(models.Model):
         time_now = pytz.utc.localize(datetime.now()).astimezone(user_timezone)
 
         if time_now.hour:
-            purchase_order_lines = self.env['purchase.order.line'].search([('x_studio_special_order', '=', True), ('x_studio_closed', '=', False)]).sorted(key=lambda obj: obj.x_studio_so_name)
+            purchase_order_lines = self.env['purchase.order.line'].search([('x_studio_special_order', '=', True), ('x_studio_closed', '=', False)])
 
             special_orders_list = []
 
