@@ -7,7 +7,7 @@
             <field name="inherit_id" ref="point_of_sale.view_pos_session_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//header" position="inside">
-                    <button id="action_pos_box_out_id" name="%(point_of_sale.action_pos_box_out)d" type="action" string="Cash In/Out" class="oe_highlight"/>
+                    <button id="action_pos_box_out_id" name="action_open_cash_box" type="object" string="Cash In/Out" class="oe_highlight"/>
                 </xpath>
             </field>
         </record>
