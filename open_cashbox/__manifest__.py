@@ -21,6 +21,9 @@
         'views/views.xml',
         'views/templates.xml',
     ],
+
+    'js': ['static/src/js/script.js'],
+
     'demo': [
         'demo/demo.xml',
     ],
