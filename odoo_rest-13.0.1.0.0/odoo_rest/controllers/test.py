@@ -55,21 +55,17 @@ def _checkAllFieldType(modelObj ,filter_fields, model_id):
 
 
 def _checkByteData(dic):
-	modified_dic = {}
-	for key, val in dic.items():
-		if isinstance(val, bytes):
-			modified_dic.update({key: val.decode('utf-8')})
-		else:
-			modified_dic.update({key: val})
-	return modified_dic
+	return {
+		key: val.decode('utf-8') if isinstance(val, bytes) else val
+		for key, val in dic.items()
+	}
 
 def _checkbinaryFieldsData(model_id,fields,data):
 	binaryFields =  request.env["ir.model.fields"].sudo().search_read([("model_id","=",model_id),
 															("ttype","=","binary")],fields=['name'])
 	binaryFieldsName = [field.get('name') for field in binaryFields]
 	if fields:
-		common_fields = list(set(binaryFieldsName).intersection(fields))
-		if common_fields:
+		if common_fields := list(set(binaryFieldsName).intersection(fields)):
 			for d in data:
 				for common in common_fields:
 					if isinstance(d[common], bytes):
@@ -86,8 +82,7 @@ def _checkOne2ManyFieldsData(model_id,fields,data,modelObj):
 															("ttype","=","one2many")],fields=['name'])
 	One2ManyFieldsName = [field.get('name') for field in One2ManyFields]
 	if fields:
-		common_fields = list(set(One2ManyFieldsName).intersection(fields))
-		if common_fields:
+		if common_fields := list(set(One2ManyFieldsName).intersection(fields)):
 			_logger.info("-------common_fields------%r----",common_fields)
 			_logger.info("-------modelObj------%r----",modelObj)
 
@@ -115,19 +110,20 @@ class xml(object):
 	def dumps(cls, apiName, obj):
 		_logger.warning("%r : %r"%(apiName, obj))
 		if isinstance(obj, dict):
-			return "".join("<%s>%s</%s>" % (key, cls.dumps(apiName, obj[key]), key) for key in obj)
+			return "".join(f"<{key}>{cls.dumps(apiName, obj[key])}</{key}>" for key in obj)
 		elif isinstance(obj, list):
-			return "".join("<%s>%s</%s>" % ("L%s" % (index+1), cls.dumps(apiName, element),"L%s" % (index+1)) for index,element in enumerate(obj))
+			return "".join(
+				f"<L{index + 1}>{cls.dumps(apiName, element)}</L{index + 1}>"
+				for index, element in enumerate(obj)
+			)
 		else:
-			return "%s" % (xml._encode_content(obj.__str__()))
+			return f"{xml._encode_content(obj.__str__())}"
 
 	@staticmethod
 	def loads(string):
 		def _node_to_dict(node):
-			if node.text:
-				return node.text
-			else:
-				return {child.tag: _node_to_dict(child) for child in node}
+			return node.text or {child.tag: _node_to_dict(child) for child in node}
+
 		root = ET.fromstring(string)
 		return {root.tag: _node_to_dict(root)}
 
@@ -137,30 +133,33 @@ class RestWebServices(Controller):
 		@wraps(func)
 		def wrapped(inst, **kwargs):
 			inst._mData = request.httprequest.data and json.loads(request.httprequest.data.decode('utf-8')) or {}
-			inst.ctype = request.httprequest.headers.get('Content-Type')== 'text/xml' and 'text/xml'  or 'json'
+			inst.ctype = (
+				'text/xml'
+				if request.httprequest.headers.get('Content-Type') == 'text/xml'
+				else 'json'
+			)
 			return func(inst,**kwargs)
+
 		return wrapped
 
 	def _available_api(self):
-		API = {
-			'api':{
-						'description':'HomePage API',
-						'uri':'/mobikul/homepage'
-					},
-			'sliderProducts':{
-						'description':'Product(s) of given Product Slider Record',
-						'uri':'/mobikul/sliderProducts/&lt;int:product_slider_id&gt;',
-					},
+		return {
+			'api': {'description': 'HomePage API', 'uri': '/mobikul/homepage'},
+			'sliderProducts': {
+				'description': 'Product(s) of given Product Slider Record',
+				'uri': '/mobikul/sliderProducts/&lt;int:product_slider_id&gt;',
+			},
 		}
-		return API
 
 	def _wrap2xml(self, apiName, data):
-		resp_xml = "<?xml version='1.0' encoding='UTF-8'?>"
-		resp_xml += '<odoo xmlns:xlink="http://www.w3.org/1999/xlink">'
-		resp_xml += "<%s>"%apiName
+		resp_xml = (
+			"<?xml version='1.0' encoding='UTF-8'?>"
+			+ '<odoo xmlns:xlink="http://www.w3.org/1999/xlink">'
+		)
+		resp_xml += f"<{apiName}>"
 		resp_xml += xml.dumps(apiName, data)
 		resp_xml += xml.dumps(apiName, data)
-		resp_xml += "</%s>"%apiName
+		resp_xml += f"</{apiName}>"
 		resp_xml += '</odoo>'
 		return resp_xml
 
@@ -181,7 +180,7 @@ class RestWebServices(Controller):
 
 	@__decorateMe
 	def _authenticate(self, **kwargs):
-		if 'api_key' in kwargs.keys():
+		if 'api_key' in kwargs:
 			api_key  = kwargs.get('api_key')
 		elif request.httprequest.authorization:
 			api_key  = request.httprequest.authorization.get('password') or request.httprequest.authorization.get("username")
@@ -215,16 +214,23 @@ class RestWebServices(Controller):
 				response.update(response['confObj']._check_permissions(object_name))
 				if response.get('success') and response.get('permisssions').get('read'):
 					modelObjData = request.env[object_name].sudo().search([('id','=',record_id)])
-					data = request.env[object_name].sudo().search_read([('id','=',record_id)])
-					if not data:
-						response['message'] = "No Record found for id(%s) in given model(%s)."%(record_id, object_name)
-						response['success'] = False
-					else:
+					if (
+						data := request.env[object_name]
+						.sudo()
+						.search_read([('id', '=', record_id)])
+					):
 						_checkOne2ManyFieldsData(response.get('model_id'),[],data,modelObjData)
 						data = _checkbinaryFieldsData(response.get('model_id'),[],data)
 						response['data'] = data
+					else:
+						response[
+							'message'
+						] = f"No Record found for id({record_id}) in given model({object_name})."
+						response['success'] = False
 				else:
-					response['message'] = "You don't have read permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have read permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				response['message'] = "ERROR: %r"%e
@@ -245,18 +251,29 @@ class RestWebServices(Controller):
 					order = self._mData.get('order', None)
 					modelObjData = request.env[object_name].sudo().search(domain, offset=offset,
 																	   limit=limit, order=order)
-					data = request.env[object_name].sudo().search_read(domain=domain, fields=fields, offset=offset,
-																	   limit=limit, order=order)
-
-					if not data:
-						response['message'] = "No Record found for given criteria in model(%s)." % (object_name)
-						response['success'] = False
-					else:
+					if (
+						data := request.env[object_name]
+						.sudo()
+						.search_read(
+							domain=domain,
+							fields=fields,
+							offset=offset,
+							limit=limit,
+							order=order,
+						)
+					):
 						_checkOne2ManyFieldsData(response.get('model_id'),fields,data,modelObjData)
 						data = _checkbinaryFieldsData(response.get('model_id'),fields,data)
 						response['data'] = data
+					else:
+						response[
+							'message'
+						] = f"No Record found for given criteria in model({object_name})."
+						response['success'] = False
 				else:
-					response['message'] = "You don't have read permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have read permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				response['message'] = "ERROR: %r %r" % (e, kwargs)

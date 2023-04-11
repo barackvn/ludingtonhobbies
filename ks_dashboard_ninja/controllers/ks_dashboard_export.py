@@ -33,7 +33,7 @@ class KsDashboardJsonExport(KsDashboardExport, http.Controller):
         return 'text/csv;charset=utf8'
 
     def filename(self, base):
-        return base + '.json'
+        return f'{base}.json'
 
     def from_data(self, dashboard_data):
         fp = io.StringIO()
@@ -57,7 +57,7 @@ class KsItemJsonExport(KsDashboardExport, http.Controller):
         return 'text/csv;charset=utf8'
 
     def filename(self, base):
-        return base + '.json'
+        return f'{base}.json'
 
     def from_data(self, dashboard_data):
         fp = io.StringIO()

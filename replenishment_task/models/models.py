@@ -35,8 +35,7 @@ class PurchaseOrderLineInherit(models.Model):
 
     @api.model
     def create(self, values):
-        product_replenish = self.env['product.replenish.values'].search([])
-        if product_replenish:
+        if product_replenish := self.env['product.replenish.values'].search([]):
             if product_replenish.x_studio_special_order:
                 values['x_studio_special_order'] = product_replenish.x_studio_special_order
             if product_replenish.x_studio_so_name:
@@ -48,8 +47,7 @@ class PurchaseOrderLineInherit(models.Model):
         return super(PurchaseOrderLineInherit, self).create(values)
 
     def write(self, values):
-        product_replenish = self.env['product.replenish.values'].search([])
-        if product_replenish:
+        if product_replenish := self.env['product.replenish.values'].search([]):
             if product_replenish.x_studio_special_order:
                 values['x_studio_special_order'] = product_replenish.x_studio_special_order
             if product_replenish.x_studio_so_name:

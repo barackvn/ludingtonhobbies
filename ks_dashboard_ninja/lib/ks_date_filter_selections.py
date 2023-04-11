@@ -13,12 +13,11 @@ import os.path
 def ks_get_date(ks_date_filter_selection, self, type):
     timezone = self._context.get('tz') or self.env.user.tz
     if not timezone:
-        ks_tzone = os.environ.get('TZ')
-        if ks_tzone:
+        if ks_tzone := os.environ.get('TZ'):
             timezone = ks_tzone
         elif os.path.exists('/etc/timezone'):
             ks_tzone = open('/etc/timezone').read()
-            timezone = ks_tzone[0:-1]
+            timezone = ks_tzone[:-1]
             try:
                 datetime.now(pytz.timezone(timezone))
             except Exception as e:
@@ -58,17 +57,23 @@ def ks_date_series_l(ks_date_selection, timezone, type):
 
 # Current Date Ranges : Week, Month, Quarter, year
 def ks_date_series_t(ks_date_selection, timezone, type):
-    return eval("ks_get_date_range_from_" + ks_date_selection)("current", timezone, type)
+    return eval(f"ks_get_date_range_from_{ks_date_selection}")(
+        "current", timezone, type
+    )
 
 
 # Previous Date Ranges : Week, Month, Quarter, year
 def ks_date_series_ls(ks_date_selection, timezone, type):
-    return eval("ks_get_date_range_from_" + ks_date_selection)("previous", timezone, type)
+    return eval(f"ks_get_date_range_from_{ks_date_selection}")(
+        "previous", timezone, type
+    )
 
 
 # Next Date Ranges : Day, Week, Month, Quarter, year
 def ks_date_series_n(ks_date_selection, timezone, type):
-    return eval("ks_get_date_range_from_" + ks_date_selection)("next", timezone, type)
+    return eval(f"ks_get_date_range_from_{ks_date_selection}")(
+        "next", timezone, type
+    )
 
 
 def ks_get_date_range_from_day(date_state, timezone, type):
@@ -96,21 +101,20 @@ def ks_get_date_range_from_week(date_state, timezone, type):
 
     date = datetime.now(pytz.timezone(timezone))
     ks_week = 0
-    if date_state == "previous":
-        ks_week = ks_week - 1
-    elif date_state == "next":
-        ks_week = ks_week + 1
+    if date_state == "next":
+        ks_week += 1
 
+    elif date_state == "previous":
+        ks_week -= 1
     date_iso = date.isocalendar()
     year = date_iso[0]
     week_no = date_iso[1]
+    start_date = datetime.strptime(f'{year}-W{week_no + ks_week}-1', "%Y-W%W-%w")
     if type == 'date':
-        start_date = datetime.strptime('%s-W%s-1' % (year, week_no+(ks_week)), "%Y-W%W-%w")
         ks_date_data["selected_start_date"] = start_date
         end_date = start_date + timedelta(days=6, hours=23, minutes=59, seconds=59, milliseconds=59)
         ks_date_data["selected_end_date"] = end_date
     else:
-        start_date = datetime.strptime('%s-W%s-1' % (year, week_no+ (ks_week)), "%Y-W%W-%w")
         ks_date_data["selected_start_date"] = ks_convert_into_utc(start_date, timezone)
         end_date = start_date + timedelta(days=6, hours=23, minutes=59, seconds=59, milliseconds=59)
         ks_date_data["selected_end_date"] = ks_convert_into_utc(end_date, timezone)
@@ -206,36 +210,34 @@ def ks_get_date_range_from_year(date_state, timezone, type):
     return ks_date_data
 
 def ks_get_date_range_from_past(date_state, self_tz, type):
-    ks_date_data = {}
     date = datetime.now(pytz.timezone(self_tz))
-    ks_date_data["selected_start_date"] = False
-    ks_date_data["selected_end_date"] = ks_convert_into_utc(date,self_tz)
-    return ks_date_data
+    return {
+        "selected_start_date": False,
+        "selected_end_date": ks_convert_into_utc(date, self_tz),
+    }
 
 
 def ks_get_date_range_from_pastwithout(date_state, self_tz, type):
-    ks_date_data = {}
     date = datetime.now(pytz.timezone(self_tz))
     hour = date.hour + 1
     date = date - timedelta(hours=hour)
     date = datetime.strptime(date.strftime("%Y-%m-%d 23:59:59"), '%Y-%m-%d %H:%M:%S')
-    ks_date_data["selected_start_date"] = False
-    if type == 'date':
-        ks_date_data["selected_end_date"] = date
-    else:
-        ks_date_data["selected_end_date"] = ks_convert_into_utc(date, self_tz)
-    return ks_date_data
+    return {
+        "selected_start_date": False,
+        "selected_end_date": date
+        if type == 'date'
+        else ks_convert_into_utc(date, self_tz),
+    }
 
 
 def ks_get_date_range_from_future(date_state, self_tz, type):
-    ks_date_data = {}
     date = datetime.now(pytz.timezone(self_tz))
-    ks_date_data["selected_end_date"] = False
-    if type == 'date':
-        ks_date_data["selected_start_date"] = date
-    else:
-        ks_date_data["selected_start_date"] = ks_convert_into_utc(date,self_tz)
-    return ks_date_data
+    return {
+        "selected_end_date": False,
+        "selected_start_date": date
+        if type == 'date'
+        else ks_convert_into_utc(date, self_tz),
+    }
 
 
 def ks_get_date_range_from_futurestarting(date_state, self_tz, type):
@@ -245,10 +247,9 @@ def ks_get_date_range_from_futurestarting(date_state, self_tz, type):
     start_date = datetime.strptime(date.strftime("%Y-%m-%d 00:00:00"), '%Y-%m-%d %H:%M:%S')
     if type == 'date':
         ks_date_data["selected_start_date"] = start_date
-        ks_date_data["selected_end_date"] = False
     else:
         ks_date_data["selected_start_date"] = ks_convert_into_utc(start_date, self_tz)
-        ks_date_data["selected_end_date"] = False
+    ks_date_data["selected_end_date"] = False
     return ks_date_data
 
 def ks_convert_into_utc(datetime, timezone):

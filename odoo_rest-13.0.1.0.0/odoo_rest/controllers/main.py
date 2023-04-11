@@ -19,23 +19,26 @@ NON_RELATIONAL_FIELDS = ['boolean','char','float','html','integer','monetary','t
 # 'date','datetime'
 ]
 
-def _fetch_coloumn_names (Modelobj,filter_field):
+def _fetch_coloumn_names(Modelobj,filter_field):
 	ModelFields = {}
 	if filter_field:
 		for ff in filter_field:
-			ModelFields.update({ff:[Modelobj._fields.get(ff),Modelobj._fields.get(ff).type,Modelobj._fields.get(ff).store]})
+			ModelFields[ff] = [
+				Modelobj._fields.get(ff),
+				Modelobj._fields.get(ff).type,
+				Modelobj._fields.get(ff).store,
+			]
 	else:
 		for model_key, model_value in Modelobj._fields.items():
-			ModelFields.update({model_key:[model_value,model_value.type,model_value.store]})
+			ModelFields[model_key] = [model_value,model_value.type,model_value.store]
 	return ModelFields
 
-def  _fetchAllFieldData(obj,filter_field):
-	if filter_field and (not 'id' in filter_field):
+def _fetchAllFieldData(obj,filter_field):
+	if filter_field and 'id' not in filter_field:
 		filter_field.append('id')
-		
+
 	all_coloumns = _fetch_coloumn_names(obj,filter_field)
-	record = _fetchColoumnData(obj,all_coloumns)
-	return record
+	return _fetchColoumnData(obj,all_coloumns)
 
 def _fetchColoumnData(obj,all_coloumns):
 	record = {}
@@ -45,38 +48,44 @@ def _fetchColoumnData(obj,all_coloumns):
 		if arr[2]:
 
 			if arr[1] in NON_RELATIONAL_FIELDS:
-				record.update({field_name:getattr(obj, field_name)})
+				record[field_name] = getattr(obj, field_name)
 			elif arr[1] == 'one2many':
 				if getattr(obj, field_name):
 					arr = []
 					for o in getattr(obj, field_name):
 						temp = {"id":o.id,}
 						if hasattr(o, "name") and isinstance(o.name, str):
-							temp.update({"name": o.name })
+							temp["name"] = o.name
 						arr.append(temp)
-					record.update({field_name:arr})
+					record[field_name] = arr
 			elif arr[1] == 'many2one':
-				record.update({field_name: getattr(obj, field_name).read(['id','name'])})
+				record[field_name] = getattr(obj, field_name).read(['id','name'])
 			elif arr[1] == 'binary':
-				record.update({field_name: getattr(obj, field_name) and getattr(obj, field_name).decode('utf-8') or False})
+				record[field_name] = (
+					getattr(obj, field_name)
+					and getattr(obj, field_name).decode('utf-8')
+					or False
+				)
 			elif arr[1] == 'date':
-				record.update({field_name: getattr(obj, field_name) and getattr(obj, field_name).isoformat() or False})
+				record[field_name] = (
+					getattr(obj, field_name)
+					and getattr(obj, field_name).isoformat()
+					or False
+				)
 			elif arr[1] == 'datetime':
-				record.update({field_name: getattr(obj, field_name) and getattr(obj, field_name).isoformat() or False})
-			elif arr[1] == 'many2many':
-				pass
-			else:
-				_logger.info("WARNING : %s FIELD IS ABSENT IN THE MODEL"%field_name)
+				record[field_name] = (
+					getattr(obj, field_name)
+					and getattr(obj, field_name).isoformat()
+					or False
+				)
+			elif arr[1] != 'many2many':
+				_logger.info(f"WARNING : {field_name} FIELD IS ABSENT IN THE MODEL")
 
 
 	return record
 
 def _fetchModelData(modelObj ,filter_field,model_id):
-	data = []
-	for obj in modelObj:
-	
-		data.append( _fetchAllFieldData(obj,filter_field))
-	return data
+	return [_fetchAllFieldData(obj,filter_field) for obj in modelObj]
 
 def _updateModelData(Modelobj,data,model_id):
 	return Modelobj.write(data)
@@ -93,15 +102,17 @@ def _fetchModelSchema(Modelobj,model_id):
 	for field_key, field_value in Modelobj._fields.items():
 		result={"field_name":field_key,"field_type": field_value.type,"label":field_value.string,"required":field_value.required,"readonly":field_value.readonly}
 		if field_value.type == 'selection':
-			result.update({"selection":field_key in ['lang','tz'] and " " or field_value.selection})
+			result["selection"] = (
+				field_key in ['lang', 'tz'] and " " or field_value.selection
+			)
 		data.append(result)
 
-		# if field_value.type == "many2one":
-		# 	data.append({model_key:field_value.type})
-		# 	_logger.info("--selection----%r----",dir(field_value))
-		# 	for method in dir(field_value):
-		# 		_logger.info("--method--%r---return-%r----", method,getattr(model_value,method))
-		# 	break
+			# if field_value.type == "many2one":
+			# 	data.append({model_key:field_value.type})
+			# 	_logger.info("--selection----%r----",dir(field_value))
+			# 	for method in dir(field_value):
+			# 		_logger.info("--method--%r---return-%r----", method,getattr(model_value,method))
+			# 	break
 	return data
 
 
@@ -116,19 +127,20 @@ class xml(object):
 	def dumps(cls, apiName, obj):
 		_logger.warning("%r : %r"%(apiName, obj))
 		if isinstance(obj, dict):
-			return "".join("<%s>%s</%s>" % (key, cls.dumps(apiName, obj[key]), key) for key in obj)
+			return "".join(f"<{key}>{cls.dumps(apiName, obj[key])}</{key}>" for key in obj)
 		elif isinstance(obj, list):
-			return "".join("<%s>%s</%s>" % ("L%s" % (index+1), cls.dumps(apiName, element),"L%s" % (index+1)) for index,element in enumerate(obj))
+			return "".join(
+				f"<L{index + 1}>{cls.dumps(apiName, element)}</L{index + 1}>"
+				for index, element in enumerate(obj)
+			)
 		else:
-			return "%s" % (xml._encode_content(obj.__str__()))
+			return f"{xml._encode_content(obj.__str__())}"
 
 	@staticmethod
 	def loads(string):
 		def _node_to_dict(node):
-			if node.text:
-				return node.text
-			else:
-				return {child.tag: _node_to_dict(child) for child in node}
+			return node.text or {child.tag: _node_to_dict(child) for child in node}
+
 		root = ET.fromstring(string)
 		return {root.tag: _node_to_dict(root)}
 
@@ -139,9 +151,14 @@ class RestWebServices(Controller):
 		@wraps(func)
 		def wrapped(inst, **kwargs):
 			inst._mData = request.httprequest.data and json.loads(request.httprequest.data.decode('utf-8')) or {}
-			inst.ctype = request.httprequest.headers.get('Content-Type') == 'text/xml' and 'text/xml' or 'json'
+			inst.ctype = (
+				'text/xml'
+				if request.httprequest.headers.get('Content-Type') == 'text/xml'
+				else 'json'
+			)
 			inst._auth = inst._authenticate(**kwargs)
 			return func(inst, **kwargs)
+
 		return wrapped
 
 	# def __decorateMe(func):
@@ -153,21 +170,19 @@ class RestWebServices(Controller):
 	# 	return wrapped
 
 	def _available_api(self):
-		API = {
-			'api':{
-						'description':'HomePage API',
-						'uri':'/mobikul/homepage'
-					},
+		return {
+			'api': {'description': 'HomePage API', 'uri': '/mobikul/homepage'},
 		}
-		return API
 
 	def _wrap2xml(self, apiName, data):
-		resp_xml = "<?xml version='1.0' encoding='UTF-8'?>"
-		resp_xml += '<odoo xmlns:xlink="http://www.w3.org/1999/xlink">'
-		resp_xml += "<%s>"%apiName
+		resp_xml = (
+			"<?xml version='1.0' encoding='UTF-8'?>"
+			+ '<odoo xmlns:xlink="http://www.w3.org/1999/xlink">'
+		)
+		resp_xml += f"<{apiName}>"
 		resp_xml += xml.dumps(apiName, data)
 		resp_xml += xml.dumps(apiName, data)
-		resp_xml += "</%s>"%apiName
+		resp_xml += f"</{apiName}>"
 		resp_xml += '</odoo>'
 		return resp_xml
 
@@ -188,7 +203,7 @@ class RestWebServices(Controller):
 
 	# @__decorateMe
 	def _authenticate(self, **kwargs):
-		if 'api_key' in kwargs.keys():
+		if 'api_key' in kwargs:
 			api_key  = kwargs.get('api_key')
 		elif request.httprequest.authorization:
 			api_key  = request.httprequest.authorization.get('password') or request.httprequest.authorization.get("username")
@@ -224,16 +239,22 @@ class RestWebServices(Controller):
 				response.update(response['confObj']._check_permissions(object_name))
 				if response.get('success') and response.get('permisssions').get('read'):
 					fields = request.httprequest.values.get('fields') and literal_eval(request.httprequest.values.get('fields')) or []
-					modelObjData = request.env[object_name].sudo().search([('id','=',record_id)])
-
-					if not modelObjData:
-						response['message'] = "No Record found for id(%s) in given model(%s)."%(record_id, object_name)
-						response['success'] = False
-					else:
+					if (
+						modelObjData := request.env[object_name]
+						.sudo()
+						.search([('id', '=', record_id)])
+					):
 						data = _fetchModelData(modelObjData,fields,response.get('model_id'))
 						response['data'] = data
+					else:
+						response[
+							'message'
+						] = f"No Record found for id({record_id}) in given model({object_name})."
+						response['success'] = False
 				else:
-					response['message'] = "You don't have read permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have read permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				response['message'] = "ERROR: %r"%e
@@ -255,16 +276,22 @@ class RestWebServices(Controller):
 					limit = int(request.httprequest.values.get('limit', 0))
 					order = request.httprequest.values.get('order', None)
 
-					modelObjData = request.env[object_name].sudo().search(domain, offset=offset,
-																	   limit=limit, order=order)
-					if not modelObjData:
-						response['message'] = "No Record found for given criteria in model(%s)." % (object_name)
-						response['success'] = False
-					else:
+					if (
+						modelObjData := request.env[object_name]
+						.sudo()
+						.search(domain, offset=offset, limit=limit, order=order)
+					):
 						data = _fetchModelData(modelObjData,fields,response.get('model_id'))
 						response['data'] = data
+					else:
+						response[
+							'message'
+						] = f"No Record found for given criteria in model({object_name})."
+						response['success'] = False
 				else:
-					response['message'] = "You don't have read permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have read permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				# pass
@@ -281,16 +308,22 @@ class RestWebServices(Controller):
 				response.update(response['confObj']._check_permissions(object_name))
 				if response.get('success') and response.get('permisssions').get('write'):
 					data = self._mData
-					modelObjData = request.env[object_name].sudo().search([('id', '=', record_id)])
-					if not modelObjData:
-						response['message'] = "No Record found for id(%s) in given model(%s)." % (
-						record_id, object_name)
-						response['success'] = False
-					else:
+					if (
+						modelObjData := request.env[object_name]
+						.sudo()
+						.search([('id', '=', record_id)])
+					):
 						_updateModelData(modelObjData, data, response.get('model_id'))
 						response['success'] = True
+					else:
+						response[
+							'message'
+						] = f"No Record found for id({record_id}) in given model({object_name})."
+						response['success'] = False
 				else:
-					response['message'] = "You don't have write permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have write permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				response['message'] = "ERROR: %r" % e
@@ -307,15 +340,22 @@ class RestWebServices(Controller):
 			try:
 				response.update(response['confObj']._check_permissions(object_name))
 				if response.get('success') and response.get('permisssions').get('delete'):
-					modelObjData = request.env[object_name].sudo().search([('id', '=', record_id)])
-					if not modelObjData:
-						response['message'] = "No Record found for id(%s) in given model(%s)." % (record_id, object_name)
-						response['success'] = False
-					else:
+					if (
+						modelObjData := request.env[object_name]
+						.sudo()
+						.search([('id', '=', record_id)])
+					):
 						_deleteModelData(modelObjData,response.get('model_id'))
 						response['success'] = True
+					else:
+						response[
+							'message'
+						] = f"No Record found for id({record_id}) in given model({object_name})."
+						response['success'] = False
 				else:
-					response['message'] = "You don't have delete permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have delete permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				response['message'] = "ERROR: %r" % e
@@ -335,7 +375,9 @@ class RestWebServices(Controller):
 					id = _createModelData(modelObjData, data, response.get('model_id'))
 					response['create_id'] = id
 				else:
-					response['message'] = "You don't have create permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have create permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				response['message'] = "ERROR: %r %r" % (e, kwargs)
@@ -354,7 +396,9 @@ class RestWebServices(Controller):
 					data = _fetchModelSchema(modelObj, response.get('model_id'))
 					response['data'] = data
 				else:
-					response['message'] = "You don't have read permission of the model '%s'" % object_name
+					response[
+						'message'
+					] = f"You don't have read permission of the model '{object_name}'"
 					response['success'] = False
 			except Exception as e:
 				response['message'] = "ERROR: %r %r" % (e, kwargs)
@@ -367,19 +411,27 @@ class RestWebServices(Controller):
 	def callMethod(self,object_name, **kwargs):
 		response = self._auth
 		response.update(response['confObj']._check_permissions(object_name))
-		if response.get('success') and response.get('permisssions').get('read') and response.get('permisssions').get('create') and response.get('permisssions').get('delete') and response.get('permisssions').get('write') :
+		if response.get('success') and response.get('permisssions').get('read') and response.get('permisssions').get('create') and response.get('permisssions').get('delete') and response.get('permisssions').get('write'):
 			db = request.httprequest.session.get('db')
 			try:
 				uid = 1
-				result = execute_kw(db, uid, object_name, self._mData.get("method"), self._mData.get("args"),self._mData.get("kw",{}))
-				if result:
+				if result := execute_kw(
+					db,
+					uid,
+					object_name,
+					self._mData.get("method"),
+					self._mData.get("args"),
+					self._mData.get("kw", {}),
+				):
 					response['message'] = "Method Successfully Called"
 					response['result'] = result
 			except Exception as e:
 				response['message'] = "ERROR: %r" % (e)
 				response['success'] = False
 		else:
-			response['message'] = "You don't have appropriate permission of the model '%s'" % object_name
+			response[
+				'message'
+			] = f"You don't have appropriate permission of the model '{object_name}'"
 			response['success'] = False
 
 		return self._response(object_name, response, self.ctype)

@@ -58,12 +58,10 @@ class SqlQueryControl(models.Model):
                     """ % key
                 thead+="</tr></thead>"
             self.msg=cant
-            cant=1
-            for row in result_row:
-                tds+="<tr><td>%s</td>" % cant
-                cant+=1
+            for cant, row in enumerate(result_row, start=1):
+                tds += f"<tr><td>{cant}</td>"
                 for value in row:
-                    tds+="<td>%s</td>" % row[value]
+                    tds += f"<td>{row[value]}</td>"
                 tds+="</tr>"
             table_out=table % (thead,tds)
             self.html_field=table_out
@@ -73,68 +71,67 @@ class SqlQueryControl(models.Model):
             raise UserError(e.pgerror)
 
     def capture_sql_field(self):
-        if self.sql_instruction:
-            query="%s"%self.sql_instruction
-            lower_query=query.lower()
-            convert_lower_query=lower_query.split(' ')
-            evaluate=[
-                        'select',
-                        'insert',
-                        'update',
-                        'delete',
-                        'replace',
-                        'truncate',
-                        'create',
-                        'drop',
-                        'alter'  ]
+        if not self.sql_instruction:
+            return
+        query = f"{self.sql_instruction}"
+        lower_query=query.lower()
+        convert_lower_query=lower_query.split(' ')
+        evaluate=[
+                    'select',
+                    'insert',
+                    'update',
+                    'delete',
+                    'replace',
+                    'truncate',
+                    'create',
+                    'drop',
+                    'alter'  ]
 
-            grupo=self.env.user.has_group('sql_query_excecute.select_sql_user')
-            if self.env.user.has_group('sql_query_excecute.select_sql_user'):
-                evaluate.remove("select")
-            if self.env.user.has_group('sql_query_excecute.insert_sql_user'):
-                evaluate.remove("insert")
-            if self.env.user.has_group('sql_query_excecute.update_sql_user'):
-                evaluate.remove("update")
-            if self.env.user.has_group('sql_query_excecute.delete_sql_user'):
-                evaluate.remove("delete")
+        grupo=self.env.user.has_group('sql_query_excecute.select_sql_user')
+        if self.env.user.has_group('sql_query_excecute.select_sql_user'):
+            evaluate.remove("select")
+        if self.env.user.has_group('sql_query_excecute.insert_sql_user'):
+            evaluate.remove("insert")
+        if self.env.user.has_group('sql_query_excecute.update_sql_user'):
+            evaluate.remove("update")
+        if self.env.user.has_group('sql_query_excecute.delete_sql_user'):
+            evaluate.remove("delete")
 
-            for i in convert_lower_query:
-                if i in evaluate:
-                    raise UserError(_(self.msgs[i]))
-            for retrict in evaluate:
-                patron = re.compile(retrict)
-                match = patron.search(lower_query)
-                if match:
-                    raise UserError(_(self.msgs[retrict]))
-            try:
-                self._cr.execute(query)
-            except (ProgrammingError,OperationalError,InterfaceError,
+        for i in convert_lower_query:
+            if i in evaluate:
+                raise UserError(_(self.msgs[i]))
+        for retrict in evaluate:
+            patron = re.compile(retrict)
+            if match := patron.search(lower_query):
+                raise UserError(_(self.msgs[retrict]))
+        try:
+            self._cr.execute(query)
+        except (ProgrammingError,OperationalError,InterfaceError,
             DatabaseError,DataError,IntegrityError,InternalError,
             NotSupportedError) as e:
-                code_error='Code Error: %s'%e.pgcode
-                error=e.pgerror
-                error_message="""%s
+            code_error = f'Code Error: {e.pgcode}'
+            error=e.pgerror
+            error_message="""%s
                 %s""" % (code_error,error)
-                raise UserError(error_message)
+            raise UserError(error_message)
+        for i in convert_lower_query:
+            if i == 'select':
+                self.excute_select()
                 return
-            for i in convert_lower_query:
-                if i == 'select':
-                    self.excute_select()
-                    return
 
-            self.message()
+        self.message()
 
     def message(self):
         convert_lower_list_query=(self.sql_instruction.lower()).split(' ')
         for i in convert_lower_list_query:
-            if i == 'insert':
+            if i == 'delete':
+                type_query='Delete'
+
+            elif i == 'insert':
                 type_query='Insert'
 
             elif i == 'update':
                 type_query='Update'
 
-            elif i == 'delete':
-                type_query='Delete'
-
         msg=_('%s - successful consultation!') % type_query
-        self.html_field='<div class="alert alert-success">%s</div>' % msg
+        self.html_field = f'<div class="alert alert-success">{msg}</div>'

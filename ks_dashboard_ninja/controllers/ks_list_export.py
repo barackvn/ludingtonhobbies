@@ -78,12 +78,7 @@ class KsListExport(ExportFormat, http.Controller):
 
         # chart_data['labels'].insert(0,'Measure')
         columns_headers = list_data['label']
-        import_data = []
-
-        for dataset in list_data['data_rows']:
-            # dataset['data'].insert(0, dataset['label'])
-            import_data.append(dataset['data'])
-
+        import_data = [dataset['data'] for dataset in list_data['data_rows']]
         return request.make_response(self.from_data(columns_headers, import_data),
             headers=[('Content-Disposition',
                             content_disposition(self.filename(header))),
@@ -106,7 +101,7 @@ class KsListExcelExport(KsListExport, http.Controller):
         return 'application/vnd.ms-excel'
 
     def filename(self, base):
-        return base + '.xls'
+        return f'{base}.xls'
 
     def from_data(self, fields, rows):
         with ExportXlsxWriter(fields, len(rows)) as xlsx_writer:
@@ -129,7 +124,7 @@ class KsListCsvExport(KsListExport, http.Controller):
         return 'text/csv;charset=utf8'
 
     def filename(self, base):
-        return base + '.csv'
+        return f'{base}.csv'
 
     def from_data(self, fields, rows):
         fp = io.BytesIO()
@@ -142,7 +137,7 @@ class KsListCsvExport(KsListExport, http.Controller):
             for d in data:
                 # Spreadsheet apps tend to detect formulas on leading =, + and -
                 if isinstance(d, str)    and d.startswith(('=', '-', '+')):
-                    d = "'" + d
+                    d = f"'{d}"
 
                 row.append(pycompat.to_text(d))
             writer.writerow(row)

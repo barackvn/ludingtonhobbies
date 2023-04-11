@@ -6,12 +6,11 @@ _logger = logging.getLogger(__name__)
 def setup_db(self, httprequest):
     db = httprequest.session.db
     # Check if session.db is legit
-    if db:
-        if db not in http.db_filter([db], httprequest=httprequest):
-            _logger.warn("Logged into database '%s', but dbfilter "
-                         "rejects it; logging session out.", db)
-            httprequest.session.logout()
-            db = None
+    if db and db not in http.db_filter([db], httprequest=httprequest):
+        _logger.warn("Logged into database '%s', but dbfilter "
+                     "rejects it; logging session out.", db)
+        httprequest.session.logout()
+        db = None
 
     if not db:
         if httprequest.headers.get('db_name'):

@@ -22,13 +22,13 @@ read = fields.Many2one.read
 
 
 def ks_read(self, records):
-    if self.name == 'ks_list_view_fields' or self.name == 'ks_list_view_group_fields':
-        comodel = records.env[self.comodel_name]
+    comodel = records.env[self.comodel_name]
 
-        # String domains are supposed to be dynamic and evaluated on client-side
-        # only (thus ignored here).
-        domain = self.domain if isinstance(self.domain, list) else []
+    # String domains are supposed to be dynamic and evaluated on client-side
+    # only (thus ignored here).
+    domain = self.domain if isinstance(self.domain, list) else []
 
+    if self.name in ['ks_list_view_fields', 'ks_list_view_group_fields']:
         wquery = comodel._where_calc(domain)
         comodel._apply_ir_rules(wquery, 'read')
         from_c, where_c, where_params = wquery.get_sql()
@@ -51,10 +51,11 @@ def ks_read(self, records):
             # store result in cache
             cache = records.env.cache
             for record in records:
-                if self.name == 'ks_list_view_fields':
-                    field = 'ks_list_view_fields'
-                else:
-                    field = 'ks_list_view_group_fields'
+                field = (
+                    'ks_list_view_fields'
+                    if self.name == 'ks_list_view_fields'
+                    else 'ks_list_view_group_fields'
+                )
                 order = False
                 if record.ks_many2many_field_ordering:
                     order = json.loads(record.ks_many2many_field_ordering).get(field, False)
@@ -66,12 +67,6 @@ def ks_read(self, records):
             raise ValidationError(_("Something went wrong, please refresh the page and try again!"))
 
     else:
-        comodel = records.env[self.comodel_name]
-
-        # String domains are supposed to be dynamic and evaluated on client-side
-        # only (thus ignored here).
-        domain = self.domain if isinstance(self.domain, list) else []
-
         wquery = comodel._where_calc(domain)
         comodel._apply_ir_rules(wquery, 'read')
         order_by = comodel._generate_order_by(None, wquery)
@@ -135,10 +130,10 @@ def ks_time_addition(self, gb, query):
             'year': dateutil.relativedelta.relativedelta(years=1)
         }
         if tz_convert:
-            qualified_field = "timezone('%s', timezone('UTC',%s))" % (self._context.get('tz', 'UTC'), qualified_field)
-        qualified_field = "date_trunc('%s', %s::timestamp)" % (gb_function or 'month', qualified_field)
+            qualified_field = f"timezone('{self._context.get('tz', 'UTC')}', timezone('UTC',{qualified_field}))"
+        qualified_field = f"date_trunc('{gb_function or 'month'}', {qualified_field}::timestamp)"
     if field_type == 'boolean':
-        qualified_field = "coalesce(%s,false)" % qualified_field
+        qualified_field = f"coalesce({qualified_field},false)"
     return {
         'field': split[0],
         'groupby': gb,
@@ -549,9 +544,7 @@ class KsDashboardNinjaItems(models.Model):
     def name_get(self):
         res = []
         for rec in self:
-            name = rec.name
-            if not name:
-                name = rec.ks_model_id.name
+            name = rec.name or rec.ks_model_id.name
             res.append((rec.id, name))
 
         return res
@@ -586,18 +579,7 @@ class KsDashboardNinjaItems(models.Model):
 
     @api.onchange('ks_layout')
     def layout_four_font_change(self):
-        if self.ks_dashboard_item_theme != "white":
-            if self.ks_layout == 'layout4':
-                self.ks_font_color = self.ks_background_color
-                self.ks_default_icon_color = "#ffffff,0.99"
-            elif self.ks_layout == 'layout6':
-                self.ks_font_color = "#ffffff,0.99"
-                self.ks_default_icon_color = self.ks_get_dark_color(self.ks_background_color.split(',')[0],
-                                                                    self.ks_background_color.split(',')[1])
-            else:
-                self.ks_default_icon_color = "#ffffff,0.99"
-                self.ks_font_color = "#ffffff,0.99"
-        else:
+        if self.ks_dashboard_item_theme == "white":
             if self.ks_layout == 'layout4':
                 self.ks_background_color = "#00000,0.99"
                 self.ks_font_color = self.ks_background_color
@@ -607,16 +589,27 @@ class KsDashboardNinjaItems(models.Model):
                 self.ks_font_color = "#00000,0.99"
                 self.ks_default_icon_color = "#00000,0.99"
 
+        elif self.ks_layout == 'layout4':
+            self.ks_font_color = self.ks_background_color
+            self.ks_default_icon_color = "#ffffff,0.99"
+        elif self.ks_layout == 'layout6':
+            self.ks_font_color = "#ffffff,0.99"
+            self.ks_default_icon_color = self.ks_get_dark_color(self.ks_background_color.split(',')[0],
+                                                                self.ks_background_color.split(',')[1])
+        else:
+            self.ks_default_icon_color = "#ffffff,0.99"
+            self.ks_font_color = "#ffffff,0.99"
+
     # To convert color into 10% darker. Percentage amount is hardcoded. Change amt if want to change percentage.
     def ks_get_dark_color(self, color, opacity):
         num = int(color[1:], 16)
         amt = -25
         R = (num >> 16) + amt
-        R = (255 if R > 255 else 0 if R < 0 else R) * 0x10000
+        R = (255 if R > 255 else max(R, 0)) * 0x10000
         G = (num >> 8 & 0x00FF) + amt
-        G = (255 if G > 255 else 0 if G < 0 else G) * 0x100
+        G = (255 if G > 255 else max(G, 0)) * 0x100
         B = (num & 0x0000FF) + amt
-        B = (255 if B > 255 else 0 if B < 0 else B)
+        B = 255 if B > 255 else max(B, 0)
         return "#" + hex(0x1000000 + R + G + B).split('x')[1][1:] + "," + opacity
 
     @api.onchange('ks_model_id')
@@ -711,8 +704,7 @@ class KsDashboardNinjaItems(models.Model):
         rec = self
         if rec.ks_record_count_type == 'count' or rec.ks_dashboard_item_type == 'ks_list_view':
             ks_record_count = rec.ks_fetch_model_data(rec.ks_model_name, rec.ks_domain, 'search_count', rec, domain)
-        elif rec.ks_record_count_type in ['sum',
-                                          'average'] and rec.ks_record_field and rec.ks_dashboard_item_type != 'ks_list_view':
+        elif rec.ks_record_count_type in ['sum', 'average'] and rec.ks_record_field:
             ks_records_grouped_data = rec.ks_fetch_model_data(rec.ks_model_name, rec.ks_domain, 'read_group', rec,
                                                               domain)
             if ks_records_grouped_data and len(ks_records_grouped_data) > 0:
@@ -760,16 +752,22 @@ class KsDashboardNinjaItems(models.Model):
     @api.onchange('ks_item_start_date_2', 'ks_item_end_date_2')
     def ks_check_datetime_2(self):
         for rec in self:
-            if rec.ks_item_start_date_2 and rec.ks_item_end_date_2:
-                if rec.ks_item_start_date_2 >= rec.ks_item_end_date_2:
-                    raise ValidationError(_("Start Date should be less than End Date"))\
+            if (
+                rec.ks_item_start_date_2
+                and rec.ks_item_end_date_2
+                and rec.ks_item_start_date_2 >= rec.ks_item_end_date_2
+            ):
+                raise ValidationError(_("Start Date should be less than End Date"))
 
     @api.onchange('ks_item_start_date', 'ks_item_end_date')
     def ks_check_valid_datetime(self):
         for rec in self:
-            if rec.ks_item_start_date and rec.ks_item_end_date:
-                if rec.ks_item_start_date >= rec.ks_item_end_date:
-                    raise ValidationError(_("Start Date should be less than End Date"))
+            if (
+                rec.ks_item_start_date
+                and rec.ks_item_end_date
+                and rec.ks_item_start_date >= rec.ks_item_end_date
+            ):
+                raise ValidationError(_("Start Date should be less than End Date"))
 
 
     def ks_convert_into_proper_domain(self, ks_domain, rec, domain=[]):
@@ -808,17 +806,16 @@ class KsDashboardNinjaItems(models.Model):
                     ks_date_domain = [
                         (rec.ks_date_filter_field.name, ">=",
                          selected_start_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT))]
-                else:
-                    if selected_end_date and selected_start_date:
-                        ks_date_domain = [
-                            (rec.ks_date_filter_field.name, ">=",
-                             selected_start_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)),
-                            (rec.ks_date_filter_field.name, "<=",
-                             selected_end_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT))
-                        ]
+                elif selected_end_date:
+                    ks_date_domain = [
+                        (rec.ks_date_filter_field.name, ">=",
+                         selected_start_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)),
+                        (rec.ks_date_filter_field.name, "<=",
+                         selected_end_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT))
+                    ]
 
             else:
-                if rec.ks_date_filter_selection and rec.ks_date_filter_selection != 'l_custom':
+                if rec.ks_date_filter_selection != 'l_custom':
                     ks_date_data = ks_get_date(rec.ks_date_filter_selection, self, rec.ks_date_filter_field.ttype)
                     selected_start_date = ks_date_data["selected_start_date"]
                     selected_end_date = ks_date_data["selected_end_date"]
@@ -828,16 +825,15 @@ class KsDashboardNinjaItems(models.Model):
                     if rec.ks_item_start_date or rec.ks_item_end_date:
                         selected_start_date = rec.ks_item_start_date
                         selected_end_date = rec.ks_item_end_date
-                        if rec.ks_date_filter_field.ttype == 'date' and rec.ks_item_start_date and rec.ks_item_end_date:
-                            ks_timezone = self._context.get('tz') or self.env.user.tz
-                            selected_start_date = ks_convert_into_local(rec.ks_item_start_date, ks_timezone)
-                            selected_end_date = ks_convert_into_local(rec.ks_item_end_date, ks_timezone)
+                    if rec.ks_date_filter_field.ttype == 'date' and rec.ks_item_start_date and rec.ks_item_end_date:
+                        ks_timezone = self._context.get('tz') or self.env.user.tz
+                        selected_start_date = ks_convert_into_local(rec.ks_item_start_date, ks_timezone)
+                        selected_end_date = ks_convert_into_local(rec.ks_item_end_date, ks_timezone)
 
                 if selected_start_date and selected_end_date:
                     if rec.ks_compare_period:
                         ks_compare_period = abs(rec.ks_compare_period)
-                        if ks_compare_period > 100:
-                            ks_compare_period = 100
+                        ks_compare_period = min(ks_compare_period, 100)
                         if rec.ks_compare_period > 0:
                             selected_end_date = selected_end_date + (
                                     selected_end_date - selected_start_date) * ks_compare_period
@@ -848,8 +844,7 @@ class KsDashboardNinjaItems(models.Model):
                     if rec.ks_year_period and rec.ks_year_period != 0 and rec.ks_dashboard_item_type:
                         abs_year_period = abs(rec.ks_year_period)
                         sign_yp = rec.ks_year_period / abs_year_period
-                        if abs_year_period > 100:
-                            abs_year_period = 100
+                        abs_year_period = min(abs_year_period, 100)
                         date_field_name = rec.ks_date_filter_field.name
 
                         ks_date_domain = ['&', (date_field_name, ">=",
@@ -872,10 +867,10 @@ class KsDashboardNinjaItems(models.Model):
                         selected_end_date = fields.datetime.strftime(selected_end_date, DEFAULT_SERVER_DATETIME_FORMAT)
                         ks_date_domain = [(rec.ks_date_filter_field.name, ">=", selected_start_date),
                                           (rec.ks_date_filter_field.name, "<=", selected_end_date)]
-                elif selected_start_date and not selected_end_date:
+                elif selected_start_date:
                     selected_start_date = fields.datetime.strftime(selected_start_date, DEFAULT_SERVER_DATETIME_FORMAT)
                     ks_date_domain = [(rec.ks_date_filter_field.name, ">=", selected_start_date)]
-                elif selected_end_date and not selected_start_date:
+                elif selected_end_date:
                     selected_end_date = fields.datetime.strftime(selected_end_date, DEFAULT_SERVER_DATETIME_FORMAT)
                     ks_date_domain = [(rec.ks_date_filter_field.name, "<=", selected_end_date)]
         else:
@@ -903,101 +898,104 @@ class KsDashboardNinjaItems(models.Model):
             if '%MYCOMPANY' in ks_domain_extension:
                 ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'", str(self.env.user.company_id.id))
 
-        ks_domain = safe_eval(ks_domain_extension)
-        return ks_domain
+        return safe_eval(ks_domain_extension)
 
     @api.onchange('ks_domain_extension')
     def ks_onchange_domain_extension(self):
-        if self.ks_domain_extension:
-            proper_domain = []
-            try:
-                ks_domain_extension = self.ks_domain_extension
-                if "%UID" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
-                if '%UID' in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
+        if not self.ks_domain_extension:
+            return
+        proper_domain = []
+        try:
+            ks_domain_extension = self.ks_domain_extension
+            if "%UID" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
+            if '%UID' in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
 
-                if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
-                    if '%MYCOMPANY' in ks_domain_extension:
-                        ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
-                                                                          str(self.env.user.company_id.id))
-                self.env[self.ks_model_name].search_count(safe_eval(ks_domain_extension))
-            except Exception:
-                raise ValidationError(
-                    "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>','"
-                    "<value_to_compare>']]")
+            if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
+                if '%MYCOMPANY' in ks_domain_extension:
+                    ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
+                                                                      str(self.env.user.company_id.id))
+            self.env[self.ks_model_name].search_count(safe_eval(ks_domain_extension))
+        except Exception:
+            raise ValidationError(
+                "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>','"
+                "<value_to_compare>']]")
 
     @api.constrains('ks_domain_extension')
     def ks_check_domain_extension(self):
-        if self.ks_domain_extension and self.ks_model_name:
-            proper_domain = []
-            try:
-                ks_domain_extension = self.ks_domain_extension
-                if "%UID" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
-                if '%UID' in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
+        if not self.ks_domain_extension or not self.ks_model_name:
+            return
+        proper_domain = []
+        try:
+            ks_domain_extension = self.ks_domain_extension
+            if "%UID" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
+            if '%UID' in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
 
-                if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
-                    if '%MYCOMPANY' in ks_domain_extension:
-                        ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
-                                                                          str(self.env.user.company_id.id))
-                self.env[self.ks_model_name].search_count(safe_eval(ks_domain_extension))
-            except Exception:
-                raise ValidationError(
-                    "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>',"
-                    "'<value_to_compare>']]")
+            if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
+                if '%MYCOMPANY' in ks_domain_extension:
+                    ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
+                                                                      str(self.env.user.company_id.id))
+            self.env[self.ks_model_name].search_count(safe_eval(ks_domain_extension))
+        except Exception:
+            raise ValidationError(
+                "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>',"
+                "'<value_to_compare>']]")
 
     @api.onchange('ks_domain_extension_2')
     def ks_onchange_domain_extension_2(self):
-        if self.ks_domain_extension_2:
-            proper_domain = []
-            try:
-                ks_domain_extension = self.ks_domain_extension_2
-                if "%UID" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
-                if '%UID' in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
+        if not self.ks_domain_extension_2:
+            return
+        proper_domain = []
+        try:
+            ks_domain_extension = self.ks_domain_extension_2
+            if "%UID" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
+            if '%UID' in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
 
-                if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
-                    if '%MYCOMPANY' in ks_domain_extension:
-                        ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
-                                                                          str(self.env.user.company_id.id))
-                self.env[self.ks_model_name_2].search_count(safe_eval(ks_domain_extension))
-            except Exception:
-                raise ValidationError(
-                    "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>',"
-                    "'<value_to_compare>']]")
+            if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
+                if '%MYCOMPANY' in ks_domain_extension:
+                    ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
+                                                                      str(self.env.user.company_id.id))
+            self.env[self.ks_model_name_2].search_count(safe_eval(ks_domain_extension))
+        except Exception:
+            raise ValidationError(
+                "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>',"
+                "'<value_to_compare>']]")
 
     @api.constrains('ks_domain_extension_2')
     def ks_check_domain_extension_2(self):
-        if self.ks_domain_extension_2 and self.ks_model_name_2:
-            proper_domain = []
-            try:
-                ks_domain_extension = self.ks_domain_extension_2
-                if "%UID" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
-                if '%UID' in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
+        if not self.ks_domain_extension_2 or not self.ks_model_name_2:
+            return
+        proper_domain = []
+        try:
+            ks_domain_extension = self.ks_domain_extension_2
+            if "%UID" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%UID"', str(self.env.user.id))
+            if '%UID' in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace("'%UID'", str(self.env.user.id))
 
-                if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
-                    ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
-                    if '%MYCOMPANY' in ks_domain_extension:
-                        ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
-                                                                          str(self.env.user.company_id.id))
-                self.env[self.ks_model_name_2].search_count(safe_eval(ks_domain_extension))
-            except Exception:
-                raise ValidationError(
-                    "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>',"
-                    "'<value_to_compare>']]")
+            if ks_domain_extension and "%MYCOMPANY" in ks_domain_extension:
+                ks_domain_extension = ks_domain_extension.replace('"%MYCOMPANY"', str(self.env.user.company_id.id))
+                if '%MYCOMPANY' in ks_domain_extension:
+                    ks_domain_extension = ks_domain_extension.replace("'%MYCOMPANY'",
+                                                                      str(self.env.user.company_id.id))
+            self.env[self.ks_model_name_2].search_count(safe_eval(ks_domain_extension))
+        except Exception:
+            raise ValidationError(
+                "Domain Extension Syntax is wrong. \nProper Syntax Example :[['<field_name'>,'<operator>',"
+                "'<value_to_compare>']]")
 
     @api.depends('ks_chart_relation_groupby')
     def get_chart_groupby_type(self):
         for rec in self:
-            if rec.ks_chart_relation_groupby.ttype == 'datetime' or rec.ks_chart_relation_groupby.ttype == 'date':
+            if rec.ks_chart_relation_groupby.ttype in ['datetime', 'date']:
                 rec.ks_chart_groupby_type = 'date_type'
             elif rec.ks_chart_relation_groupby.ttype == 'many2one':
                 rec.ks_chart_groupby_type = 'relational_type'
@@ -1017,8 +1015,7 @@ class KsDashboardNinjaItems(models.Model):
     @api.depends('ks_chart_relation_sub_groupby')
     def get_chart_sub_groupby_type(self):
         for rec in self:
-            if rec.ks_chart_relation_sub_groupby.ttype == 'datetime' or \
-                    rec.ks_chart_relation_sub_groupby.ttype == 'date':
+            if rec.ks_chart_relation_sub_groupby.ttype in ['datetime', 'date']:
                 rec.ks_chart_sub_groupby_type = 'date_type'
             elif rec.ks_chart_relation_sub_groupby.ttype == 'many2one':
                 rec.ks_chart_sub_groupby_type = 'relational_type'
