@@ -50,7 +50,7 @@ class KsChartExcelExport(KsChartExport, http.Controller):
         return 'application/vnd.ms-excel'
 
     def filename(self, base):
-        return base + '.xls'
+        return f'{base}.xls'
 
     def from_data(self, fields, rows):
         with ExportXlsxWriter(fields, len(rows)) as xlsx_writer:
@@ -73,7 +73,7 @@ class KsChartCsvExport(KsChartExport, http.Controller):
         return 'text/csv;charset=utf8'
 
     def filename(self, base):
-        return base + '.csv'
+        return f'{base}.csv'
 
     def from_data(self, fields, rows):
         fp = io.BytesIO()
@@ -86,7 +86,7 @@ class KsChartCsvExport(KsChartExport, http.Controller):
             for d in data:
                 # Spreadsheet apps tend to detect formulas on leading =, + and -
                 if isinstance(d, str)    and d.startswith(('=', '-', '+')):
-                    d = "'" + d
+                    d = f"'{d}"
 
                 row.append(pycompat.to_text(d))
             writer.writerow(row)

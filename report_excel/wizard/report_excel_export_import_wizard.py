@@ -15,8 +15,10 @@ class ReportExcelExportWizard(models.TransientModel):
         """
         """
         active_ids = self.env.context.get('active_ids', [])
-        datas = {'ids': active_ids}
-        datas['active_model'] = self.env.context.get('active_model')
+        datas = {
+            'ids': active_ids,
+            'active_model': self.env.context.get('active_model'),
+        }
         datas['multiple_export'] = self.multiple_export
         return self.env['report_excel_export_gen'].create_conf(datas)
     def wizard_view(self):
@@ -49,19 +51,24 @@ class ReportExcelImportWizard(models.TransientModel):
     def import_excel(self):
         """
         """
-        datafile = self.env['ir.attachment'].sudo().search_read([
-            ('res_model', '=', 'report_excel_import_wizard'), 
-            ('res_id', '=', self.id), 
-            ('res_field', '=', 'data')],
-            []
+        if (
+            datafile := self.env['ir.attachment']
+            .sudo()
+            .search_read(
+                [
+                    ('res_model', '=', 'report_excel_import_wizard'),
+                    ('res_id', '=', self.id),
+                    ('res_field', '=', 'data'),
+                ],
+                [],
             )
-        if datafile:
+        ):
             config = self._get_template(datafile[0]['id']) or {}
             config_fp = config._full_path(config['store_fname'])
-            if not 'xml' in config.mimetype:  
+            if 'xml' not in config.mimetype:  
                 msg = ('Does not support the file format, '
                        'please use correct file format.')
-                raise UserError(msg)        
+                raise UserError(msg)
             with open(config_fp, 'rb') as fp:
                 try:
                     tools.convert.convert_xml_import(self._cr, 'report_excel', fp, {}, 'init', False)

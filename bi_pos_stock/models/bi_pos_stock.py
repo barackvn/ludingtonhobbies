@@ -61,13 +61,12 @@ class pos_order(models.Model):
 			location_id = order.location_id.id
 			if order.partner_id:
 				destination_id = order.partner_id.property_stock_customer.id
-			else:
-				if (not picking_type) or (not picking_type.default_location_dest_id):
-					customerloc, supplierloc = StockWarehouse._get_partner_locations()
-					destination_id = customerloc.id
-				else:
-					destination_id = picking_type.default_location_dest_id.id
+			elif picking_type and picking_type.default_location_dest_id:
+				destination_id = picking_type.default_location_dest_id.id
 
+			else:
+				customerloc, supplierloc = StockWarehouse._get_partner_locations()
+				destination_id = customerloc.id
 			if picking_type:
 				message = _("This transfer has been created from the point of sale session: <a href=# data-oe-model=pos.order data-oe-id=%d>%s</a>") % (order.id, order.name)
 				picking_vals = {
@@ -82,27 +81,32 @@ class pos_order(models.Model):
 					'location_id': location_id,
 					'location_dest_id': destination_id,
 				}
-				pos_qty = any([x.qty > 0 for x in order.lines if x.product_id.type in ['product', 'consu']])
+				pos_qty = any(
+					x.qty > 0
+					for x in order.lines
+					if x.product_id.type in ['product', 'consu']
+				)
 				if pos_qty:
 					order_picking = Picking.create(picking_vals.copy())
 					if self.env.user.partner_id.email:
 						order_picking.message_post(body=message)
 					else:
 						order_picking.sudo().message_post(body=message)
-				neg_qty = any([x.qty < 0 for x in order.lines if x.product_id.type in ['product', 'consu']])
+				neg_qty = any(
+					x.qty < 0
+					for x in order.lines
+					if x.product_id.type in ['product', 'consu']
+				)
 				if neg_qty:
-					return_vals = picking_vals.copy()
-					return_vals.update({
+					return_vals = picking_vals | {
 						'location_id': destination_id,
-						'location_dest_id': return_pick_type != picking_type and return_pick_type.default_location_dest_id.id or location_id,
-						'picking_type_id': return_pick_type.id
-					})
+						'location_dest_id': return_pick_type != picking_type
+						and return_pick_type.default_location_dest_id.id
+						or location_id,
+						'picking_type_id': return_pick_type.id,
+					}
 					return_picking = Picking.create(return_vals)
-					if self.env.user.partner_id.email:
-						return_picking.message_post(body=message)
-					else:
-						return_picking.message_post(body=message)
-
+					return_picking.message_post(body=message)
 			for line in order.lines.filtered(lambda l: l.product_id.type in ['product', 'consu'] and not float_is_zero(l.qty, precision_rounding=l.product_id.uom_id.rounding)):
 				moves |= Move.create({
 					'name': line.name,
@@ -144,9 +148,9 @@ class stock_quant(models.Model):
 				quantity = 0.0
 				for quant in quants:
 					quantity += quant.quantity
-				res.update({product.id : quantity})
+				res[product.id] = quantity
 			else:
-				res.update({product.id : quants.quantity})
+				res[product.id] = quants.quantity
 		return [res]
 
 	def get_products_stock_location_qty(self, location,products):
@@ -158,9 +162,9 @@ class stock_quant(models.Model):
 				quantity = 0.0
 				for quant in quants:
 					quantity += quant.quantity
-				res.update({product.id : quantity})
+				res[product.id] = quantity
 			else:
-				res.update({product.id : quants.quantity})
+				res[product.id] = quants.quantity
 		return [res]
 
 	def get_single_product(self,product, location):
@@ -206,32 +210,23 @@ class product(models.Model):
 						if quant.state not in ['done']:
 							incoming_qty += quant.product_qty
 					product.available_quantity = qty-product_qty + incoming_qty
-					res.update({product.id : qty-product_qty + incoming_qty})
+					res[product.id] = qty-product_qty + incoming_qty
 			else:
+				if len(outgoing) > 0:
+					for quant in outgoing:
+						if quant.state not in ['done']:
+							product_qty += quant.product_qty
+
+				if len(incoming) > 0:
+					for quant in incoming:
+						if quant.state not in ['done']:
+							incoming_qty += quant.product_qty
 				if not quants:
-					if len(outgoing) > 0:
-						for quant in outgoing:
-							if quant.state not in ['done']:
-								product_qty += quant.product_qty
-
-					if len(incoming) > 0:
-						for quant in incoming:
-							if quant.state not in ['done']:
-								incoming_qty += quant.product_qty
 					product.available_quantity = qty-product_qty + incoming_qty
-					res.update({product.id : qty-product_qty + incoming_qty})
+					res[product.id] = qty-product_qty + incoming_qty
 				else:
-					if len(outgoing) > 0:
-						for quant in outgoing:
-							if quant.state not in ['done']:
-								product_qty += quant.product_qty
-
-					if len(incoming) > 0:
-						for quant in incoming:
-							if quant.state not in ['done']:
-								incoming_qty += quant.product_qty
 					product.available_quantity = quants.quantity - product_qty + incoming_qty
-					res.update({product.id : quants.quantity - product_qty + incoming_qty})
+					res[product.id] = quants.quantity - product_qty + incoming_qty
 		return [res]
 	
 

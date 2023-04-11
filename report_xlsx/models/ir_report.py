@@ -12,7 +12,7 @@ class ReportAction(models.Model):
 
     @api.model
     def render_xlsx(self, docids, data):
-        report_model_name = "report.%s" % self.report_name
+        report_model_name = f"report.{self.report_name}"
         report_model = self.env.get(report_model_name)
         if report_model is None:
             raise UserError(_("%s model was not found") % report_model_name)
@@ -24,8 +24,7 @@ class ReportAction(models.Model):
 
     @api.model
     def _get_report_from_name(self, report_name):
-        res = super(ReportAction, self)._get_report_from_name(report_name)
-        if res:
+        if res := super(ReportAction, self)._get_report_from_name(report_name):
             return res
         report_obj = self.env["ir.actions.report"]
         qwebtypes = ["xlsx"]
